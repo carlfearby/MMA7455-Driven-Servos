@@ -7,10 +7,28 @@ Servo servo1;
 Servo servo2;
 
 int servoPin1 = 3;
-int servoPin2 = 4;
+int servoPin2 = 5;
 
 int valX = 90;
 int valY = 90;
+
+
+float valXScaled;
+float valXSmoothed;
+float valXSmoothedPrev;
+
+float valYScaled;
+float valYSmoothed;
+float valYSmoothedPrev;
+
+//int checkXYZ = 300; // ms
+//int lastXYZ = 0;
+//
+//int doServos = 10;
+//int lastServos = 0;
+
+uint16_t x,y,z;
+double dX,dY,dZ;
 
 void setup()
 {
@@ -18,7 +36,6 @@ void setup()
 
   Serial.begin(9600);
   Serial.println("Freescale MMA7455 accelerometer");
-  Serial.println("May 2012");
   
 #if defined __AVR__
   my_mma.begin();       
@@ -40,28 +57,60 @@ void setup()
 
   servo1.attach(servoPin1);
   servo2.attach(servoPin2);
+
+  servo1.write(valX);
+  servo1.write(valY);
 }
 
 
 void loop()
 {
-  uint16_t x,y,z, error;
-  double dX,dY,dZ;
+  checkSensor();
+  setServos();
+  delay(30);
+}
 
-  x = y = z = 0;
-  error = my_mma.xyz(&x, &y, &z); // get the accelerometer values.
+void checkSensor() {
+  static unsigned long lastTime = 0;
+  const long interval = 500;
+  unsigned long now = millis();
 
-  dX = (int16_t) x / 64.0;          // calculate the 'g' values.
-  dY = (int16_t) y / 64.0;
-  dZ = (int16_t) z / 64.0;
-
-  if (error != 0 || abs(dX) > 0.04 || abs(dY) > 0.04 || abs(dZ) > 1.04) {
-    valX = map(dX * 50 + 50, 0, 100, 0, 180);
-    valY = map(dY * 50 + 50, 0, 100, 0, 180);
+  if ( now - lastTime > interval) {
+        
+    my_mma.xyz(&x, &y, &z);
+  
+    if (y > 32000) {
+      valY = y - 65535;
+    } else {
+      valY = y;
+    }
+  
+    if (x > 32000) {
+      valX = x - 65535;
+    } else {
+      valX = x;
+    }
+  
+    valY = map(valY, -64, 64, 0, 180);
+    valX = map(valX, -64, 64, 0, 180);    
   }
 
+}
 
-  servo1.write(valY);
-  servo2.write(valX);
-  delay(5);
+void setServos() {
+  valXSmoothed = (valX * 0.1) + (valXSmoothedPrev * 0.9);
+  valXSmoothedPrev = valXSmoothed;
+
+  valYSmoothed = (valY * 0.1) + (valYSmoothedPrev * 0.9);
+  valYSmoothedPrev = valYSmoothed;
+
+  
+  if(valX >=0 || valX <= 180) {
+    servo1.write(valXSmoothed);
+  }
+  
+  if(valY >= 0 || valY <= 180) {
+    servo2.write(valYSmoothed);
+  }
+  
 }
